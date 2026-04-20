@@ -1,40 +1,114 @@
 # Alert Rules and Runbooks
 
+> **Owner:** Nguyen Thanh Nam (D13-T04)  
+> **Last updated:** 2026-04-20  
+> Moi runbook duoi day tuong ung voi mot alert trong `config/alert_rules.yaml`.
+
+---
+
 ## 1. High latency P95
-- Severity: P2
-- Trigger: `latency_p95_ms > 5000 for 30m`
-- Impact: tail latency breaches SLO
-- First checks:
-  1. Open top slow traces in the last 1h
-  2. Compare RAG span vs LLM span
-  3. Check if incident toggle `rag_slow` is enabled
-- Mitigation:
-  - truncate long queries
-  - fallback retrieval source
-  - lower prompt size
+
+- **Severity:** P2
+- **Trigger:** `latency_p95_ms > 5000 for 30m`
+- **SLO objective:** 3000ms (alert ban o 5000ms - 2x budget)
+- **Impact:** Tail latency vi pham SLO, nguoi dung cuoi bang trai nghiem cham ro ret
+
+### First checks
+
+1. Mo top slow traces trong 1 gio gan nhat tren Langfuse
+2. So sanh thoi gian span RAG vs span LLM (buoc nao chiem nhieu thoi gian hon)
+3. Kiem tra incident toggle `rag_slow` co dang bat khong:
+   ```bash
+   python scripts/inject_incident.py --status
+   ```
+4. Xem log JSON va loc theo `latency_ms > 5000`
+
+### Mitigation
+
+- Tat incident toggle neu do nguyen nhan thu cong: `python scripts/inject_incident.py --disable rag_slow`
+- Rut ngan query truoc khi gui vao RAG (truncate long queries)
+- Doi sang nguon retrieval du phong (fallback retrieval source)
+- Giam kich thuoc prompt de LLM xu ly nhanh hon
+
+---
 
 ## 2. High error rate
-- Severity: P1
-- Trigger: `error_rate_pct > 5 for 5m`
-- Impact: users receive failed responses
-- First checks:
-  1. Group logs by `error_type`
-  2. Inspect failed traces
-  3. Determine whether failures are LLM, tool, or schema related
-- Mitigation:
-  - rollback latest change
-  - disable failing tool
-  - retry with fallback model
+
+- **Severity:** P1
+- **Trigger:** `error_rate_pct > 5 for 5m`
+- **SLO objective:** 2% (alert ban o 5% - su co nghiem trong)
+- **Impact:** Nguoi dung nhan duoc response that bai, anh huong truc tiep den trai nghiem
+
+### First checks
+
+1. Nhom log loi theo truong `error_type`:
+   ```bash
+   python scripts/validate_logs.py
+   ```
+2. Inspect failed traces tren Langfuse - xem step nao bi loi (LLM, tool, hay schema)
+3. Xac dinh loi co phai do: LLM, tool call, hay schema validation
+4. Kiem tra xem co deploy moi nao gan day khong (git log --oneline -10)
+
+### Mitigation
+
+- Rollback thay doi moi nhat neu loi bat dau sau deploy
+- Disable tool dang bi loi trong `app/agent.py`
+- Retry voi fallback model hoac tat tinh nang dang gap su co
+- Escalate len P0 neu error rate vuot 20% va khong giam
+
+---
 
 ## 3. Cost budget spike
-- Severity: P2
-- Trigger: `hourly_cost_usd > 2x_baseline for 15m`
-- Impact: burn rate exceeds budget
-- First checks:
-  1. Split traces by feature and model
-  2. Compare tokens_in/tokens_out
-  3. Check if `cost_spike` incident was enabled
-- Mitigation:
-  - shorten prompts
-  - route easy requests to cheaper model
-  - apply prompt cache
+
+- **Severity:** P2
+- **Trigger:** `hourly_cost_usd > 2x_baseline for 15m`
+- **SLO objective:** $2.50/request (alert khi gio vuot 2x baseline)
+- **Impact:** Toc do dot ngan sach vuot ke hoach, co the anh huong tai chinh
+
+### First checks
+
+1. Phan chia traces theo `feature` va `model` tag tren Langfuse
+2. So sanh `tokens_in` / `tokens_out` giua cac request binh thuong va bat thuong
+3. Kiem tra incident toggle `cost_spike` co dang kich hoat khong:
+   ```bash
+   python scripts/inject_incident.py --status
+   ```
+4. Xem metrics endpoint: `GET /metrics` va kiem tra `avg_cost_usd`
+
+### Mitigation
+
+- Tat incident toggle: `python scripts/inject_incident.py --disable cost_spike`
+- Rut ngan prompt (shorten prompts) de giam tokens_in
+- Route cac request don gian sang mo hinh re hon
+- Ap dung prompt cache cho cac query lap lai
+
+---
+
+## 4. Low quality score
+
+- **Severity:** P2
+- **Trigger:** `quality_score_avg < 0.5 for 10m`
+- **SLO objective:** 0.75 (alert ban o 0.5 - nguoi dung da cam nhan ro su xuong cap)
+- **Impact:** Nguoi dung nhan duoc response kem chat luong, sai lech hoac khong lien quan
+
+### First checks
+
+1. Mo traces tren Langfuse, loc theo tag `quality_score < 0.5`
+2. Kiem tra RAG co dang tra ve chunks lien quan khong:
+   - Xem `retrieval_score` trong trace metadata
+   - So sanh noi dung chunk vs noi dung cau hoi
+3. Kiem tra xem incident toggle `rag_slow` hoac `rag_failure` co dang bat khong:
+   ```bash
+   python scripts/inject_incident.py --status
+   ```
+4. Xem log JSON va loc theo `quality_score`:
+   ```bash
+   python scripts/validate_logs.py
+   ```
+
+### Mitigation
+
+- Tat incident toggle neu do nguyen nhan thu cong
+- Dieu chinh similarity threshold trong `app/mock_rag.py` de lay chunk chinh xac hon
+- Fallback sang LLM truc tiep (khong qua RAG) neu retrieval dang bi degraded
+- Re-rank ket qua retrieval: uu tien chunk co diem so tuong dong cao nhat

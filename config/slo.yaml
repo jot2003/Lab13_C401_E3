@@ -1,16 +1,36 @@
 service: day13-observability-lab
 window: 28d
+
+# SLO definitions for Day 13 Observability Lab
+# Owner: Nguyen Thanh Nam (D13-T04)
+# Each SLI has an objective (threshold for violation) and alert_threshold (when alert fires).
+# alert_threshold is intentionally set higher than objective to give a burn-rate buffer.
+
 slis:
   latency_p95_ms:
+    description: "P95 latency phai duoi 3000ms de dam bao trai nghiem nguoi dung"
     objective: 3000
     target: 99.5
-    note: Replace with your group's target
+    alert_threshold: 5000
+    note: "Alert ban khi > 5000ms trong 30 phut (~2x SLO budget). Xem runbook: docs/alerts.md#1-high-latency-p95"
+
   error_rate_pct:
+    description: "Ti le request loi phai duoi 2% theo cua so 28 ngay"
     objective: 2
     target: 99.0
+    alert_threshold: 5
+    note: "Alert ban khi > 5% trong 5 phut. Xem runbook: docs/alerts.md#2-high-error-rate"
+
   daily_cost_usd:
+    description: "Chi phi trung binh moi request khong vuot $2.50 USD"
     objective: 2.5
     target: 100.0
+    alert_threshold: "2x_baseline"
+    note: "Alert ban khi chi phi gio vuot 2x baseline trong 15 phut. Xem runbook: docs/alerts.md#3-cost-budget-spike"
+
   quality_score_avg:
+    description: "Diem chat luong response trung binh phai >= 0.75 (thang 0.0-1.0)"
     objective: 0.75
     target: 95.0
+    alert_threshold: 0.5
+    note: "Alert ban khi quality trung binh < 0.5 trong 10 phut. Xem runbook: docs/alerts.md#4-low-quality-score"

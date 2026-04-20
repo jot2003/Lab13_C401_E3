@@ -22,7 +22,7 @@ alerts:
 
   - name: cost_budget_spike
     severity: P2
-    condition: hourly_cost_usd > 2x_baseline for 15m
+    condition: avg_cost_usd > 2x_baseline for 15m
     type: symptom-based
     owner: finops-owner
     runbook: docs/alerts.md#3-cost-budget-spike
@@ -30,7 +30,7 @@ alerts:
 
   - name: low_quality_score
     severity: P2
-    condition: quality_score_avg < 0.5 for 10m
+    condition: quality_avg < 0.5 for 10m
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#4-low-quality-score

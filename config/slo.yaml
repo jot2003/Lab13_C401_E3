@@ -26,11 +26,13 @@ slis:
     objective: 2.5
     target: 100.0
     alert_threshold: "2x_baseline"
-    note: "Alert ban khi chi phi gio vuot 2x baseline trong 15 phut. Xem runbook: docs/alerts.md#3-cost-budget-spike"
+    metric_key: avg_cost_usd
+    note: "Alert ban khi avg_cost_usd vuot 2x baseline trong 15 phut. Xem runbook: docs/alerts.md#3-cost-budget-spike"
 
   quality_score_avg:
     description: "Diem chat luong response trung binh phai >= 0.75 (thang 0.0-1.0)"
     objective: 0.75
     target: 95.0
     alert_threshold: 0.5
-    note: "Alert ban khi quality trung binh < 0.5 trong 10 phut. Xem runbook: docs/alerts.md#4-low-quality-score"
+    metric_key: quality_avg
+    note: "Alert ban khi quality_avg < 0.5 trong 10 phut. Xem runbook: docs/alerts.md#4-low-quality-score"

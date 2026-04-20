@@ -11,7 +11,6 @@
 3. Quach Gia Duoc (2A202600423)
 4. Pham Quoc Dung (2A202600490)
 5. Nguyen Thanh Nam (2A202600205)
-6. (Neu co) Thanh vien thu 6: cap nhat ten tai day
 
 ## Nguyen tac lam viec
 1. Moi nguoi uu tien sua file trong scope cua minh.

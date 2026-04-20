@@ -3,19 +3,19 @@ from __future__ import annotations
 import hashlib
 import re
 
-PII_PATTERNS: dict[str, str] = {
-    "email": r"[\w\.-]+@[\w\.-]+\.\w+",
-    "phone_vn": r"(?:\+84|0)[ \.-]?\d{3}[ \.-]?\d{3}[ \.-]?\d{3,4}", # Matches 090 123 4567, 090.123.4567, etc.
-    "cccd": r"\b\d{12}\b",
-    "credit_card": r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
-    # TODO: Add more patterns (e.g., Passport, Vietnamese address keywords)
+PII_PATTERNS: dict[str, re.Pattern[str]] = {
+    "email": re.compile(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b", flags=re.IGNORECASE),
+    "phone_vn": re.compile(r"(?<!\w)(?:\+84|84|0)(?:[ .-]?\d){8,10}(?!\w)"),
+    "cccd": re.compile(r"\b\d{12}\b"),
+    "credit_card": re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b"),
+    "passport": re.compile(r"\b[A-Z]{1,2}\d{6,7}\b"),
 }
 
 
 def scrub_text(text: str) -> str:
     safe = text
     for name, pattern in PII_PATTERNS.items():
-        safe = re.sub(pattern, f"[REDACTED_{name.upper()}]", safe)
+        safe = pattern.sub(f"[REDACTED_{name.upper()}]", safe)
     return safe
 
 

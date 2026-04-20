@@ -27,3 +27,20 @@ def test_series_are_pruned_to_max_points() -> None:
     series = metrics.timeseries_snapshot()
     assert len(series["latency"]) == metrics.MAX_SERIES_POINTS
     assert len(series["traffic"]) == metrics.MAX_SERIES_POINTS
+
+
+def test_data_attack_summary_updates_snapshot() -> None:
+    metrics.reset()
+    metrics.record_data_attack_summary(
+        {
+            "total_records": 10,
+            "invalid_records": 4,
+            "by_attack_type": {"MISSING_REQUIRED": 3, "WRONG_TYPE": 7},
+            "by_error_type": {"required": 2, "type": 2},
+        }
+    )
+    snap = metrics.snapshot()
+    assert snap["data_attack_ingestions"] == 1
+    assert snap["data_attack_total_records"] == 10
+    assert snap["data_attack_invalid_records"] == 4
+    assert snap["data_attack_invalid_rate_pct"] == 40.0

@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import json
 import os
+from collections import Counter
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from jsonschema import Draft7Validator
 from structlog.contextvars import bind_contextvars
 
 from .agent import LabAgent
 from .guardrails import evaluate_request_scope, evaluate_system_scope, load_limits
 from .incidents import disable, enable, status
 from .logging_config import configure_logging, get_logger
-from .metrics import record_error, record_guardrail_breach, snapshot, timeseries_snapshot
+from .metrics import record_data_attack_summary, record_error, record_guardrail_breach, snapshot, timeseries_snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
@@ -21,6 +25,81 @@ log = get_logger()
 app = FastAPI(title="Day 13 Observability Lab")
 app.add_middleware(CorrelationIdMiddleware)
 agent = LabAgent()
+ADMISSIONS_SCHEMA_PATH = Path("data/admissions_schema.json")
+ADMISSIONS_DATASETS = {
+    "clean": Path("data/admissions_clean.jsonl"),
+    "attack": Path("data/admissions_attack.jsonl"),
+}
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+    return rows
+
+
+def _analyze_admissions_dataset(dataset: str) -> dict:
+    if dataset not in ADMISSIONS_DATASETS:
+        raise HTTPException(status_code=404, detail=f"Unknown dataset: {dataset}")
+    if not ADMISSIONS_SCHEMA_PATH.exists():
+        raise HTTPException(status_code=500, detail=f"Schema not found: {ADMISSIONS_SCHEMA_PATH}")
+
+    schema = json.loads(ADMISSIONS_SCHEMA_PATH.read_text(encoding="utf-8"))
+    validator = Draft7Validator(schema)
+    path = ADMISSIONS_DATASETS[dataset]
+    rows = _load_jsonl(path)
+    if not rows:
+        raise HTTPException(status_code=400, detail=f"Dataset not found or empty: {path}")
+
+    by_attack = Counter()
+    by_error = Counter()
+    invalid_records = 0
+    sample_errors: list[dict] = []
+    for idx, row in enumerate(rows, 1):
+        working = dict(row)
+        attack_type = working.get("_attack_type", "UNKNOWN")
+        by_attack[attack_type] += 1
+        if dataset == "attack":
+            # Ignore metadata keys so validation focuses on domain fields.
+            working.pop("_attack_type", None)
+            working.pop("_attack_desc", None)
+
+        errors = sorted(validator.iter_errors(working), key=lambda e: e.path)
+        if not errors:
+            continue
+        invalid_records += 1
+        first = errors[0]
+        by_error[first.validator] += 1
+        if len(sample_errors) < 12:
+            sample_errors.append(
+                {
+                    "dong": idx,
+                    "attack_type": attack_type,
+                    "loi_dau_tien": first.message,
+                    "truong": ".".join(str(part) for part in first.absolute_path) or "(root)",
+                }
+            )
+
+    summary = {
+        "dataset": dataset,
+        "dataset_path": str(path),
+        "total_records": len(rows),
+        "invalid_records": invalid_records,
+        "valid_records": len(rows) - invalid_records,
+        "invalid_rate_pct": round((invalid_records / len(rows)) * 100, 2) if rows else 0.0,
+        "by_attack_type": dict(by_attack),
+        "by_error_type": dict(by_error),
+        "sample_errors": sample_errors,
+    }
+    return summary
 
 
 @app.on_event("startup")
@@ -49,6 +128,23 @@ async def metrics() -> dict:
 @app.get("/metrics/timeseries")
 async def metrics_timeseries() -> dict:
     return timeseries_snapshot()
+
+
+@app.post("/ingest/admissions/{dataset}")
+async def ingest_admissions_dataset(dataset: str, request: Request) -> dict:
+    summary = _analyze_admissions_dataset(dataset)
+    record_data_attack_summary(summary)
+    log.info(
+        "data_attack_ingested",
+        service="api",
+        payload={
+            "dataset": dataset,
+            "invalid_records": summary["invalid_records"],
+            "total_records": summary["total_records"],
+        },
+        correlation_id=request.state.correlation_id,
+    )
+    return summary
 
 
 @app.post("/chat", response_model=ChatResponse)

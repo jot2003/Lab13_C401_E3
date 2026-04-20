@@ -70,11 +70,19 @@
   - https://github.com/jot2003/Lab13_C401_E3/commit/5bb3f37
 
 ### Pham Quoc Dung (2A202600490)
-- [TASKS_COMPLETED]: Tích hợp Langfuse v3, propagate correlation_id xuyên suốt spans, bổ sung metadata tracing và runtime evidence.
+- [TASKS_COMPLETED]:
+  - Hoàn thành D13-T03 tracing pipeline: instrument spans trong `app/tracing.py`, `app/agent.py`, `app/main.py`.
+  - Sửa propagation `correlation_id` xuyên suốt các spans và metadata để truy vết nhất quán từ response header -> trace -> JSON logs.
+  - Nâng cấp tương thích Langfuse v3 API và chuẩn hóa metadata tracing (`feature`, `session_id`, `request_id`) để lọc theo domain use-case.
+  - Xác minh đầu ra tracing với tối thiểu 10 traces (thực tế 74 traces) và bàn giao bộ evidence phục vụ demo/incident debug.
 - [EVIDENCE_LINK]:
   - https://github.com/jot2003/Lab13_C401_E3/commit/ae8f2bf
   - https://github.com/jot2003/Lab13_C401_E3/commit/92d3fc8
   - https://github.com/jot2003/Lab13_C401_E3/commit/e0904c7
+  - docs/evidence/01-langfuse-trace-list.png
+  - docs/evidence/02-trace-waterfall.png
+  - docs/evidence/03-correlation-proof.png
+  - docs/evidence/tracing-summary.json
 
 ### Nguyen Thanh Nam (2A202600205)
 - [TASKS_COMPLETED]: Thiết kế SLO/alerts theo domain tuyển sinh, đồng bộ metric key, cập nhật runbook và mapping attack-to-alert.

@@ -16,7 +16,7 @@ LOG_PATH = Path(os.getenv("LOG_PATH", "data/logs.jsonl"))
 DEFAULT_TIMEOUT = 15.0
 
 st.set_page_config(
-    page_title="Admissions Observability Console",
+    page_title="Bảng Điều Khiển Quan Sát Tuyển Sinh",
     page_icon="🎓",
     layout="wide",
 )
@@ -37,9 +37,11 @@ def api_post(path: str) -> dict[str, Any]:
 
 
 def run_load_test(concurrency: int) -> tuple[bool, str]:
+    env = os.environ.copy()
+    env["API_BASE_URL"] = API_BASE_URL
     command = [sys.executable, "scripts/load_test.py", "--concurrency", str(concurrency)]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        result = subprocess.run(command, capture_output=True, text=True, check=True, env=env)
         return True, result.stdout[-3000:]
     except subprocess.CalledProcessError as exc:
         return False, (exc.stdout + "\n" + exc.stderr)[-3000:]
@@ -75,40 +77,40 @@ def to_timeseries(series: list[dict[str, Any]], field: str) -> list[dict[str, An
     return output
 
 
-st.title("Admissions Observability Console")
-st.caption("Detect → Diagnose → Mitigate → Verify for university admissions assistant incidents.")
+st.title("Bảng Điều Khiển Quan Sát Hệ Thống Tuyển Sinh")
+st.caption("Phát hiện -> Chẩn đoán -> Xử lý -> Xác nhận hồi phục cho trợ lý tư vấn tuyển sinh.")
 
 with st.sidebar:
-    st.subheader("System")
-    st.text_input("API Base URL", value=API_BASE_URL, disabled=True)
-    if st.button("Refresh now", use_container_width=True):
+    st.subheader("Thông tin hệ thống")
+    st.text_input("Địa chỉ API", value=API_BASE_URL, disabled=True)
+    if st.button("Tải lại dữ liệu ngay", use_container_width=True):
         st.rerun()
 
 tab_overview, tab_incident, tab_investigation, tab_evidence = st.tabs(
-    ["Overview", "Incident Control", "Investigation", "Evidence Checklist"]
+    ["Tổng quan", "Điều khiển sự cố", "Điều tra", "Checklist nộp bài"]
 )
 
 with tab_overview:
-    st.subheader("6-Panel Dashboard")
+    st.subheader("Dashboard 6 biểu đồ")
     try:
         metrics = api_get("/metrics")
         ts = api_get("/metrics/timeseries")
     except Exception as exc:  # pragma: no cover - runtime UX fallback
-        st.error(f"Failed to load metrics from API: {exc}")
+        st.error(f"Không tải được metrics từ API: {exc}")
         st.stop()
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Latency P95 (ms)", f"{metrics.get('latency_p95', 0):.0f}")
-    col2.metric("Error Rate (%)", f"{metrics.get('error_rate_pct', 0):.2f}")
-    col3.metric("Traffic", f"{metrics.get('traffic', 0)}")
-    col4.metric("Quality Avg", f"{metrics.get('quality_avg', 0):.2f}")
+    col1.metric("Độ trễ P95 (ms)", f"{metrics.get('latency_p95', 0):.0f}")
+    col2.metric("Tỷ lệ lỗi (%)", f"{metrics.get('error_rate_pct', 0):.2f}")
+    col3.metric("Lượt truy cập", f"{metrics.get('traffic', 0)}")
+    col4.metric("Chất lượng trung bình", f"{metrics.get('quality_avg', 0):.2f}")
 
-    st.markdown("### Panel 1: Latency P50/P95/P99")
+    st.markdown("### Biểu đồ 1: Độ trễ P50/P95/P99")
     latency_series = to_timeseries(ts.get("latency", []), "value")
     if latency_series:
         st.line_chart(latency_series, x="time", y="value")
     else:
-        st.info("No latency series yet. Send traffic with load test.")
+        st.info("Chưa có dữ liệu độ trễ. Hãy tạo traffic bằng nút load test.")
     st.write(
         {
             "latency_p50": metrics.get("latency_p50"),
@@ -119,13 +121,13 @@ with tab_overview:
 
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("### Panel 2: Traffic / QPS")
+        st.markdown("### Biểu đồ 2: Traffic / QPS")
         traffic_series = to_timeseries(ts.get("traffic", []), "count")
         if traffic_series:
             st.area_chart(traffic_series, x="time", y="count")
         st.write({"traffic": metrics.get("traffic"), "qps": metrics.get("qps")})
 
-        st.markdown("### Panel 3: Error Rate + Breakdown")
+        st.markdown("### Biểu đồ 3: Tỷ lệ lỗi + Phân loại lỗi")
         st.write(
             {
                 "error_rate_pct": metrics.get("error_rate_pct"),
@@ -141,13 +143,13 @@ with tab_overview:
             st.bar_chart([{"error_type": k, "count": v} for k, v in by_type.items()], x="error_type", y="count")
 
     with c2:
-        st.markdown("### Panel 4: Cost Over Time")
+        st.markdown("### Biểu đồ 4: Chi phí theo thời gian")
         cost_series = to_timeseries(ts.get("cost", []), "value")
         if cost_series:
             st.line_chart(cost_series, x="time", y="value")
         st.write({"avg_cost_usd": metrics.get("avg_cost_usd"), "total_cost_usd": metrics.get("total_cost_usd")})
 
-        st.markdown("### Panel 5: Tokens In / Out")
+        st.markdown("### Biểu đồ 5: Token vào / ra")
         token_rows = []
         for row in ts.get("tokens", []):
             token_rows.append(
@@ -168,7 +170,7 @@ with tab_overview:
             }
         )
 
-    st.markdown("### Panel 6: Quality Proxy")
+    st.markdown("### Biểu đồ 6: Chỉ số chất lượng")
     quality_series = to_timeseries(ts.get("quality", []), "value")
     if quality_series:
         st.line_chart(quality_series, x="time", y="value")
@@ -181,50 +183,50 @@ with tab_overview:
     )
 
 with tab_incident:
-    st.subheader("Incident Controls")
+    st.subheader("Điều khiển sự cố")
     try:
         health = api_get("/health")
         incidents = health.get("incidents", {})
         st.json(incidents)
     except Exception as exc:
-        st.error(f"Cannot fetch incident status: {exc}")
+        st.error(f"Không lấy được trạng thái sự cố: {exc}")
         incidents = {}
 
     col_a, col_b, col_c = st.columns(3)
     for col, incident in zip((col_a, col_b, col_c), ("rag_slow", "tool_fail", "cost_spike")):
         with col:
             st.markdown(f"#### {incident}")
-            if st.button(f"Enable {incident}", key=f"enable_{incident}", use_container_width=True):
+            if st.button(f"Bật {incident}", key=f"enable_{incident}", use_container_width=True):
                 try:
                     api_post(f"/incidents/{incident}/enable")
-                    st.success(f"{incident} enabled")
+                    st.success(f"Đã bật {incident}")
                 except Exception as exc:
                     st.error(str(exc))
-            if st.button(f"Disable {incident}", key=f"disable_{incident}", use_container_width=True):
+            if st.button(f"Tắt {incident}", key=f"disable_{incident}", use_container_width=True):
                 try:
                     api_post(f"/incidents/{incident}/disable")
-                    st.success(f"{incident} disabled")
+                    st.success(f"Đã tắt {incident}")
                 except Exception as exc:
                     st.error(str(exc))
 
-    st.markdown("### Generate Test Traffic")
-    concurrency = st.slider("Concurrency", min_value=1, max_value=20, value=5)
-    if st.button("Run load test", use_container_width=True):
+    st.markdown("### Tạo traffic để test")
+    concurrency = st.slider("Số lượng request đồng thời", min_value=1, max_value=20, value=5)
+    if st.button("Chạy load test", use_container_width=True):
         ok, output = run_load_test(concurrency)
         if ok:
-            st.success("Load test completed")
+            st.success("Đã chạy load test xong")
             st.code(output or "(no output)")
         else:
-            st.error("Load test failed")
+            st.error("Load test thất bại")
             st.code(output or "(no output)")
 
 with tab_investigation:
-    st.subheader("Investigation Workspace")
+    st.subheader("Khu vực điều tra")
     logs = load_logs()
-    st.write(f"Loaded log records: {len(logs)}")
+    st.write(f"Số bản ghi log đã tải: {len(logs)}")
 
-    correlation_filter = st.text_input("Filter by correlation_id")
-    level_filter = st.selectbox("Filter by level", options=["all", "info", "warning", "error", "critical"])
+    correlation_filter = st.text_input("Lọc theo correlation_id")
+    level_filter = st.selectbox("Lọc theo mức độ log", options=["all", "info", "warning", "error", "critical"])
 
     filtered = logs
     if correlation_filter.strip():
@@ -232,36 +234,36 @@ with tab_investigation:
     if level_filter != "all":
         filtered = [row for row in filtered if row.get("level") == level_filter]
 
-    st.markdown("### Recent logs")
+    st.markdown("### Log gần đây")
     st.json(filtered[-30:])
 
-    st.markdown("### Metrics raw")
+    st.markdown("### Dữ liệu metrics thô")
     try:
         st.json(api_get("/metrics"))
     except Exception as exc:
-        st.error(f"Cannot load /metrics: {exc}")
+        st.error(f"Không tải được /metrics: {exc}")
 
     st.markdown("### Tracing")
     st.info(
-        "Open Langfuse and filter by correlation_id from above logs. "
-        "Use this flow: Metrics -> Traces -> Logs."
+        "Mo Langfuse va loc theo correlation_id tu log ben tren. "
+        "Quy trình để tìm lỗi: Metrics -> Traces -> Logs."
     )
 
 with tab_evidence:
-    st.subheader("Evidence Checklist (Submission Ready)")
+    st.subheader("Checklist bằng chứng (sẵn sàng nộp bài)")
     checks = [
-        "Langfuse trace list with >= 10 traces",
-        "One full trace waterfall screenshot",
-        "JSON logs showing correlation_id",
-        "PII redaction evidence",
-        "Dashboard with all 6 panels",
-        "Alert rules with runbook link",
-        "validate_logs.py score >= 80/100",
+        "Danh sách trace Langfuse >= 10 trace",
+        "1 ảnh waterfall trace đầy đủ",
+        "Log JSON có correlation_id",
+        "Có bằng chứng ẩn PII",
+        "Dashboard đủ 6 biểu đồ",
+        "Alert rules có runbook link",
+        "Điểm validate_logs.py >= 80/100",
     ]
     for item in checks:
         st.checkbox(item, value=False)
 
-    st.markdown("### Recommended filenames")
+    st.markdown("### Tên file ảnh khuyến nghị")
     st.code(
         "\n".join(
             [

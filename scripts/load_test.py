@@ -1,12 +1,13 @@
 import argparse
 import concurrent.futures
 import json
+import os
 import time
 from pathlib import Path
 
 import httpx
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 QUERIES = Path("data/sample_queries.jsonl")
 
 

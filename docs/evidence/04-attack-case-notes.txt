@@ -1,0 +1,19 @@
+Case A - rag_slow
+attack_correlation_id: req-ragslow-38247cc0
+attack_status:         200
+attack_trace_id:       9225c08e60fb28a6d07f87de10a4eba9
+root_span:             rag.retrieve (2.5ms)
+recover_correlation_id:req-ragrecover-d4062bbf
+recover_status:        200
+recover_trace_id:      c7dafbd44e13aba8475de89b586122b9
+recover_root_span:     llm.generate (0.2ms)
+
+Case B - cost_spike
+attack_correlation_id: req-costspike-19fb06e5
+attack_status:         200 (expect 200)
+attack_trace_id:       f8a46f222dbaa9184668fce222efad12
+root_span:             llm.generate (0.2ms)
+recover_correlation_id:req-costrecover-5935fad2
+recover_status:        200 (expect 200)
+recover_trace_id:      3ec6d73de68ff1b483cd5cf2f052b41e
+recover_root_span:     llm.generate (0.2ms)

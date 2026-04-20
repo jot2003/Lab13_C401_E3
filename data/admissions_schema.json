@@ -88,20 +88,18 @@
     },
     "to_hop_xet_tuyen": {
       "type": "string",
-      "enum": ["A00", "A01", "B00", "B08", "C00", "C01", "D01", "D07", "D14", "D15", "D90", "N00", "R00"],
-      "description": "Tổ hợp môn xét tuyển"
+      "enum": ["A00", "A01", "B00", "B08", "C00", "C01", "D01", "D07", "D14", "D15", "D90", "N00", "R00", "V00"],
+      "description": "Tổ hợp môn xét tuyển. V00 = Toán/Lý/Vẽ kỹ thuật (Kiến trúc)."
     },
     "diem_xet_tuyen": {
       "type": "number",
       "minimum": 0,
-      "maximum": 30,
-      "description": "Điểm xét tuyển thực tế của học sinh (thang 30)"
+      "description": "Điểm xét tuyển. Thang điểm phụ thuộc phuong_thuc_xet_tuyen (xem if/then/else bên dưới)."
     },
     "diem_chuan_du_kien": {
       "type": "number",
-      "minimum": 15,
-      "maximum": 30,
-      "description": "Điểm chuẩn dự kiến của ngành năm nay"
+      "minimum": 0,
+      "description": "Điểm chuẩn dự kiến. Cùng thang với diem_xet_tuyen."
     },
     "hoc_phi_vnd": {
       "type": "number",
@@ -138,6 +136,37 @@
       "format": "date-time",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
       "description": "Thời điểm tạo bản ghi (ISO 8601 UTC)"
+    }
+  },
+  "if": {
+    "properties": { "phuong_thuc_xet_tuyen": { "const": "DGNL" } },
+    "required": ["phuong_thuc_xet_tuyen"]
+  },
+  "then": {
+    "properties": {
+      "diem_xet_tuyen":    { "minimum": 0,   "maximum": 1200 },
+      "diem_chuan_du_kien":{ "minimum": 400, "maximum": 1200 }
+    },
+    "description": "DGNL: thang điểm ĐHQG (0–1200), chuẩn thực tế 600–1100"
+  },
+  "else": {
+    "if": {
+      "properties": { "phuong_thuc_xet_tuyen": { "enum": ["IELTS", "Chung_chi_quoc_te"] } },
+      "required": ["phuong_thuc_xet_tuyen"]
+    },
+    "then": {
+      "properties": {
+        "diem_xet_tuyen":    { "minimum": 0, "maximum": 9, "multipleOf": 0.5 },
+        "diem_chuan_du_kien":{ "minimum": 0, "maximum": 9, "multipleOf": 0.5 }
+      },
+      "description": "IELTS/Chứng chỉ quốc tế: thang 0–9, bội số 0.5"
+    },
+    "else": {
+      "properties": {
+        "diem_xet_tuyen":    { "minimum": 0,  "maximum": 30 },
+        "diem_chuan_du_kien":{ "minimum": 15, "maximum": 30 }
+      },
+      "description": "THPTQG/Hoc_ba/Uu_tien: thang 30 điểm"
     }
   }
 }

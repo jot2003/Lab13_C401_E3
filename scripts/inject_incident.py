@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import os
 
 import httpx
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def main() -> None:

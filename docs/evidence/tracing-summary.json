@@ -1,0 +1,34 @@
+{
+  "trace_total_items": 74,
+  "proof": {
+    "request_id_sent": "req-proof-38cffd91",
+    "response_header_x_request_id": "req-proof-38cffd91",
+    "response_body_correlation_id": "req-proof-38cffd91",
+    "trace_id": "f0c7e48e370845f8a2f2fea820ea92fd",
+    "trace_metadata_correlation_id": "req-proof-38cffd91"
+  },
+  "attack_cases": {
+    "rag_slow": {
+      "attack_correlation_id": "req-ragslow-38247cc0",
+      "attack_trace_id": "9225c08e60fb28a6d07f87de10a4eba9",
+      "root_span": "rag.retrieve",
+      "recover_correlation_id": "req-ragrecover-d4062bbf",
+      "recover_trace_id": "c7dafbd44e13aba8475de89b586122b9"
+    },
+    "cost_spike": {
+      "attack_correlation_id": "req-costspike-19fb06e5",
+      "attack_status": 200,
+      "attack_trace_id": "f8a46f222dbaa9184668fce222efad12",
+      "root_span": "llm.generate",
+      "recover_correlation_id": "req-costrecover-5935fad2",
+      "recover_trace_id": "3ec6d73de68ff1b483cd5cf2f052b41e"
+    }
+  },
+  "files_created": [
+    "docs/evidence/01-langfuse-trace-list.png",
+    "docs/evidence/02-trace-waterfall.png",
+    "docs/evidence/03-correlation-proof.png",
+    "docs/evidence/04-attack-case-notes.png",
+    "docs/evidence/04-attack-case-notes.txt"
+  ]
+}

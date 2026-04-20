@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+import uuid
 from dataclasses import dataclass
 
 from . import metrics
@@ -43,10 +44,23 @@ class LabAgent:
         correlation_id: str | None = None,
     ) -> AgentResult:
         started = time.perf_counter()
+        resolved_correlation_id = self._resolve_correlation_id(correlation_id)
         active_incidents = extract_active_incidents(incident_status())
-        docs = self._retrieve_docs(message)
+        docs = self._retrieve_docs(
+            message=message,
+            correlation_id=resolved_correlation_id,
+            feature=feature,
+            session_id=session_id,
+            active_incidents=active_incidents,
+        )
         prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
-        response = self._generate_response(prompt)
+        response = self._generate_response(
+            prompt=prompt,
+            correlation_id=resolved_correlation_id,
+            feature=feature,
+            session_id=session_id,
+            active_incidents=active_incidents,
+        )
         quality_score = self._heuristic_quality(message, response.text, docs)
         latency_ms = int((time.perf_counter() - started) * 1000)
         cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
@@ -58,7 +72,7 @@ class LabAgent:
             session_id=session_id,
             tags=build_trace_tags(feature=feature, model=self.model, active_incidents=active_incidents, env=env),
             metadata={
-                "correlation_id": correlation_id or "unknown",
+                "correlation_id": resolved_correlation_id,
                 "active_incidents": active_incidents,
                 "feature": feature,
                 "model": self.model,
@@ -73,7 +87,10 @@ class LabAgent:
                 "query_preview": summarize_text(message),
                 "latency_ms": latency_ms,
                 "cost_usd": cost_usd,
-                "correlation_id": correlation_id or "unknown",
+                "correlation_id": resolved_correlation_id,
+                "session_id": session_id,
+                "feature": feature,
+                "model": self.model,
                 "active_incidents": active_incidents,
             },
             usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
@@ -97,24 +114,57 @@ class LabAgent:
         )
 
     @observe(name="rag.retrieve")
-    def _retrieve_docs(self, message: str) -> list[str]:
+    def _retrieve_docs(
+        self,
+        message: str,
+        correlation_id: str,
+        feature: str,
+        session_id: str,
+        active_incidents: list[str],
+    ) -> list[str]:
         docs = retrieve(message)
         safe_update_current_observation(
             input={"message_preview": summarize_text(message)},
             output={"doc_count": len(docs)},
-            metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
+            metadata={
+                "doc_count": len(docs),
+                "query_preview": summarize_text(message),
+                "correlation_id": correlation_id,
+                "feature": feature,
+                "session_id": session_id,
+                "active_incidents": active_incidents,
+            },
         )
         return docs
 
     @observe(name="llm.generate")
-    def _generate_response(self, prompt: str):
+    def _generate_response(
+        self,
+        prompt: str,
+        correlation_id: str,
+        feature: str,
+        session_id: str,
+        active_incidents: list[str],
+    ):
         response = self.llm.generate(prompt)
         safe_update_current_observation(
             model=self.model,
-            metadata={"prompt_preview": summarize_text(prompt, max_len=120)},
+            metadata={
+                "prompt_preview": summarize_text(prompt, max_len=120),
+                "correlation_id": correlation_id,
+                "feature": feature,
+                "session_id": session_id,
+                "model": self.model,
+                "active_incidents": active_incidents,
+            },
             usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
         )
         return response
+
+    def _resolve_correlation_id(self, correlation_id: str | None) -> str:
+        if correlation_id and correlation_id.strip():
+            return correlation_id.strip()
+        return f"req-local-{uuid.uuid4().hex[:8]}"
 
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
         input_cost = (tokens_in / 1_000_000) * 3

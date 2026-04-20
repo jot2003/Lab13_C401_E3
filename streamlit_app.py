@@ -4,20 +4,15 @@ import json
 import os
 import subprocess
 import sys
-from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 import streamlit as st
-from jsonschema import Draft7Validator
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 LOG_PATH = Path(os.getenv("LOG_PATH", "data/logs.jsonl"))
-ADMISSIONS_SCHEMA_PATH = Path("data/admissions_schema.json")
-ADMISSIONS_CLEAN_PATH = Path("data/admissions_clean.jsonl")
-ADMISSIONS_ATTACK_PATH = Path("data/admissions_attack.jsonl")
 DEFAULT_TIMEOUT = 15.0
 SLO_THRESHOLDS = {
     "latency_p95": 3000.0,
@@ -43,6 +38,13 @@ def api_get(path: str) -> dict[str, Any]:
 def api_post(path: str) -> dict[str, Any]:
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
         response = client.post(f"{API_BASE_URL}{path}")
+        response.raise_for_status()
+        return response.json()
+
+
+def api_post_json(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
+        response = client.post(f"{API_BASE_URL}{path}", json=payload or {})
         response.raise_for_status()
         return response.json()
 
@@ -132,69 +134,6 @@ def render_breakdown(title: str, data: dict[str, int], x_key: str) -> None:
     st.write(data)
 
 
-def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            rows.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return rows
-
-
-def validate_admissions_dataset(path: Path, strip_attack_meta: bool) -> dict[str, Any]:
-    if not ADMISSIONS_SCHEMA_PATH.exists():
-        return {"error": f"Không tìm thấy schema: {ADMISSIONS_SCHEMA_PATH}"}
-    schema = json.loads(ADMISSIONS_SCHEMA_PATH.read_text(encoding="utf-8"))
-    validator = Draft7Validator(schema)
-    rows = load_jsonl(path)
-    if not rows:
-        return {"error": f"Không tìm thấy dữ liệu hoặc file rỗng: {path}"}
-
-    by_attack = Counter()
-    by_validator = Counter()
-    invalid_count = 0
-    sample_errors: list[dict[str, Any]] = []
-    for idx, row in enumerate(rows, 1):
-        working = dict(row)
-        attack_type = working.get("_attack_type", "UNKNOWN")
-        by_attack[attack_type] += 1
-        if strip_attack_meta:
-            working.pop("_attack_type", None)
-            working.pop("_attack_desc", None)
-
-        errors = sorted(validator.iter_errors(working), key=lambda e: e.path)
-        if not errors:
-            continue
-        invalid_count += 1
-        first = errors[0]
-        by_validator[first.validator] += 1
-        if len(sample_errors) < 12:
-            sample_errors.append(
-                {
-                    "dong": idx,
-                    "attack_type": attack_type,
-                    "loi_dau_tien": first.message,
-                    "truong": ".".join([str(p) for p in first.absolute_path]) or "(root)",
-                }
-            )
-
-    return {
-        "total_records": len(rows),
-        "invalid_records": invalid_count,
-        "valid_records": len(rows) - invalid_count,
-        "by_attack_type": dict(by_attack),
-        "by_error_type": dict(by_validator),
-        "sample_errors": sample_errors,
-        "dataset_path": str(path),
-        "strip_attack_meta": strip_attack_meta,
-    }
-
-
 st.title("Bảng Điều Khiển Quan Sát Hệ Thống Tuyển Sinh")
 st.caption("Phát hiện -> Chẩn đoán -> Xử lý -> Xác nhận hồi phục cho trợ lý tư vấn tuyển sinh.")
 
@@ -247,6 +186,11 @@ with tab_overview:
             f"{metrics.get('quality_avg', 0):.2f}",
             delta=f"SLO >= {SLO_THRESHOLDS['quality_avg_min']:.2f}",
         )
+        da1, da2, da3, da4 = st.columns(4)
+        da1.metric("Số lần ingest JSONL", f"{metrics.get('data_attack_ingestions', 0)}")
+        da2.metric("Tổng records JSONL", f"{metrics.get('data_attack_total_records', 0)}")
+        da3.metric("Tổng records lỗi schema", f"{metrics.get('data_attack_invalid_records', 0)}")
+        da4.metric("Tỷ lệ lỗi data attack (%)", f"{metrics.get('data_attack_invalid_rate_pct', 0):.2f}")
 
         st.markdown("### Biểu đồ 1: Độ trễ P50/P95/P99")
         percentile_series = build_latency_percentile_series(ts.get("latency", []))
@@ -425,46 +369,52 @@ with tab_investigation:
     with data_attack_view:
         st.markdown("### Phân tích tấn công dữ liệu admissions")
         st.caption(
-            "Phân loại theo `attack_type` và loại lỗi schema để chứng minh hệ thống bắt được nhiều kiểu "
-            "dữ liệu bẩn từ các nhóm khác."
+            "Nhấn nút nạp để backend ingest JSONL vào metrics. Sau đó trang Tổng quan sẽ cập nhật "
+            "các chỉ số data attack ngay."
         )
         col_left, col_right = st.columns(2)
         with col_left:
-            if st.button("Phân tích admissions_clean", use_container_width=True):
-                summary = validate_admissions_dataset(ADMISSIONS_CLEAN_PATH, strip_attack_meta=False)
-                if "error" in summary:
-                    st.error(summary["error"])
+            if st.button("Nạp admissions_clean vào metrics", use_container_width=True):
+                try:
+                    summary = api_post_json("/ingest/admissions/clean")
+                except Exception as exc:
+                    st.error(f"Nạp admissions_clean thất bại: {exc}")
                 else:
-                    st.success("Đã phân tích admissions_clean.jsonl")
+                    st.success("Đã nạp admissions_clean vào metrics")
                     st.write(
                         {
                             "total_records": summary["total_records"],
                             "valid_records": summary["valid_records"],
                             "invalid_records": summary["invalid_records"],
+                            "invalid_rate_pct": summary["invalid_rate_pct"],
                         }
                     )
                     render_breakdown("#### Breakdown theo attack_type", summary["by_attack_type"], "attack_type")
                     render_breakdown("#### Breakdown theo schema_error_type", summary["by_error_type"], "error_type")
                     st.markdown("#### Ví dụ lỗi")
                     st.json(summary["sample_errors"])
+                    st.info("Chuyển sang tab Tổng quan để thấy metric data attack vừa cập nhật.")
         with col_right:
-            if st.button("Phân tích admissions_attack", use_container_width=True):
-                summary = validate_admissions_dataset(ADMISSIONS_ATTACK_PATH, strip_attack_meta=True)
-                if "error" in summary:
-                    st.error(summary["error"])
+            if st.button("Nạp admissions_attack vào metrics", use_container_width=True):
+                try:
+                    summary = api_post_json("/ingest/admissions/attack")
+                except Exception as exc:
+                    st.error(f"Nạp admissions_attack thất bại: {exc}")
                 else:
-                    st.warning("Kết quả phân tích admissions_attack.jsonl")
+                    st.warning("Đã nạp admissions_attack vào metrics")
                     st.write(
                         {
                             "total_records": summary["total_records"],
                             "valid_records": summary["valid_records"],
                             "invalid_records": summary["invalid_records"],
+                            "invalid_rate_pct": summary["invalid_rate_pct"],
                         }
                     )
                     render_breakdown("#### Breakdown theo attack_type", summary["by_attack_type"], "attack_type")
                     render_breakdown("#### Breakdown theo schema_error_type", summary["by_error_type"], "error_type")
                     st.markdown("#### Ví dụ lỗi")
                     st.json(summary["sample_errors"])
+                    st.info("Chuyển sang tab Tổng quan để thấy metric data attack vừa cập nhật.")
 
 with tab_evidence:
     st.subheader("Checklist bằng chứng (sẵn sàng nộp bài)")

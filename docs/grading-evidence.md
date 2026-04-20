@@ -12,9 +12,9 @@
 | 1 | Langfuse trace list with ≥ 10 traces (`docs/evidence/01-langfuse-trace-list.png`) | A1 – Logging & Tracing (10 pts) | ☑ |
 | 2 | One full trace waterfall (with span details) (`docs/evidence/02-trace-waterfall.png`) | A1 – Logging & Tracing | ☑ |
 | 3 | Correlation proof image (response header -> trace metadata -> JSON logs) (`docs/evidence/03-correlation-proof.png`) | A1 – Logging & Tracing | ☑ |
-| 4 | Log line with PII redaction (e.g. email -> `***`) | A1 – Alerts & PII (10 pts) | ☐ |
-| 5 | Dashboard with all 6 panels visible | A1 – Dashboard & SLO (10 pts) | ☐ |
-| 6 | Alert rules config with runbook link (screenshot) | A1 – Alerts & PII | ☐ |
+| 4 | Log line with PII redaction (e.g. email -> `***`) (`docs/evidence/04-pii-redaction.png`) | A1 – Alerts & PII (10 pts) | ☑ |
+| 5 | Dashboard with all 6 panels visible (`docs/evidence/05-dashboard-6-panels.png`) | A1 – Dashboard & SLO (10 pts) | ☑ |
+| 6 | Alert rules config with runbook link (screenshot) (`docs/evidence/06-alert-rules.png`) | A1 – Alerts & PII | ☑ |
 
 ## Optional Screenshots (Bonus)
 
@@ -45,6 +45,7 @@ Pending files for full D13-T05 closure:
 05-dashboard-6-panels.png
 06-alert-rules.png
 ```
+Status: done (all files present in `docs/evidence/`).
 
 ---
 
@@ -68,7 +69,7 @@ Total traces: 74  (must be ≥ 10)
 
 ### Dashboard Panel Count
 ```
-Panels visible: N/A (pending dashboard capture)
+Panels visible: 6/6 (`docs/evidence/05-dashboard-6-panels.png`)
 ```
 
 ### D13-T03 Correlation + Attack Evidence (Runtime)
@@ -94,10 +95,10 @@ cost_spike.recover_trace_id: 3ec6d73de68ff1b483cd5cf2f052b41e
 |---|---|---|---|
 | 1 | `validate_logs.py` passes ≥ 80/100 | `python scripts/validate_logs.py` | ☑ |
 | 2 | ≥ 10 traces on Langfuse | Checked via Langfuse API/dashboard (`totalItems=74`) | ☑ |
-| 3 | Dashboard shows all 6 panels | Screenshot in `docs/evidence/05-dashboard-6-panels.png` | ☐ |
-| 4 | Evidence collection complete | All required screenshots (1–6) present | ☐ |
-| 5 | Blueprint report filled | `docs/blueprint-template.md` has all member names + sections | ☐ |
+| 3 | Dashboard shows all 6 panels | Screenshot in `docs/evidence/05-dashboard-6-panels.png` | ☑ |
+| 4 | Evidence collection complete | All required screenshots (1–6) present | ☑ |
+| 5 | Blueprint report filled | `docs/blueprint-template.md` has all member names + sections | ☑ |
 | 6 | No PII leaks in logs | `validate_logs.py` reports leaks=0 (raw token grep-like count=14) | ☑ |
 | 7 | All TODOs resolved | TODO scan in `app/` returned 0 | ☑ |
 
-**Sign-off**: __________________ Date: 2026-04-20
+**Sign-off**: Hoang Kim Tri Thanh (D13-T00/D13-T05) Date: 2026-04-20

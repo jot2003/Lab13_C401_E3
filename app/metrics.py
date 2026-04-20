@@ -12,8 +12,14 @@ REQUEST_TOKENS_IN: list[int] = []
 REQUEST_TOKENS_OUT: list[int] = []
 ERRORS: Counter[str] = Counter()
 GUARDRAIL_BREACHES: Counter[str] = Counter()
+DATA_ATTACK_BY_TYPE: Counter[str] = Counter()
+DATA_ATTACK_BY_ERROR: Counter[str] = Counter()
 TRAFFIC: int = 0
 QUALITY_SCORES: list[float] = []
+DATA_ATTACK_INGESTIONS: int = 0
+DATA_ATTACK_TOTAL_RECORDS: int = 0
+DATA_ATTACK_INVALID_RECORDS: int = 0
+DATA_ATTACK_LAST_SUMMARY: dict = {}
 
 # ---------- Time-series (for dashboard panels) ----------
 LATENCY_SERIES: list[dict] = []   # {"ts": epoch, "value": ms}
@@ -94,6 +100,19 @@ def record_guardrail_breach(kind: str) -> None:
         GUARDRAIL_BREACHES[kind] += 1
 
 
+def record_data_attack_summary(summary: dict) -> None:
+    global DATA_ATTACK_INGESTIONS, DATA_ATTACK_TOTAL_RECORDS, DATA_ATTACK_INVALID_RECORDS, DATA_ATTACK_LAST_SUMMARY
+    with _lock:
+        DATA_ATTACK_INGESTIONS += 1
+        total_records = int(summary.get("total_records", 0))
+        invalid_records = int(summary.get("invalid_records", 0))
+        DATA_ATTACK_TOTAL_RECORDS += total_records
+        DATA_ATTACK_INVALID_RECORDS += invalid_records
+        DATA_ATTACK_BY_TYPE.update(summary.get("by_attack_type", {}))
+        DATA_ATTACK_BY_ERROR.update(summary.get("by_error_type", {}))
+        DATA_ATTACK_LAST_SUMMARY = dict(summary)
+
+
 def percentile(values: list[int], p: int) -> float:
     if not values:
         return 0.0
@@ -125,6 +144,15 @@ def snapshot() -> dict:
             "error_rate_pct": error_rate(),
             "error_breakdown": dict(ERRORS),
             "guardrail_breaches": dict(GUARDRAIL_BREACHES),
+            "data_attack_ingestions": DATA_ATTACK_INGESTIONS,
+            "data_attack_total_records": DATA_ATTACK_TOTAL_RECORDS,
+            "data_attack_invalid_records": DATA_ATTACK_INVALID_RECORDS,
+            "data_attack_invalid_rate_pct": round((DATA_ATTACK_INVALID_RECORDS / DATA_ATTACK_TOTAL_RECORDS) * 100, 2)
+            if DATA_ATTACK_TOTAL_RECORDS
+            else 0.0,
+            "data_attack_by_type": dict(DATA_ATTACK_BY_TYPE),
+            "data_attack_by_error": dict(DATA_ATTACK_BY_ERROR),
+            "data_attack_last_summary": dict(DATA_ATTACK_LAST_SUMMARY),
             # Panel 4: Cost over time
             "avg_cost_usd": round(mean(REQUEST_COSTS), 4) if REQUEST_COSTS else 0.0,
             "total_cost_usd": round(sum(REQUEST_COSTS), 4),
@@ -155,7 +183,7 @@ def timeseries_snapshot() -> dict:
 
 def reset() -> None:
     """Reset all metrics (useful for testing)."""
-    global TRAFFIC
+    global TRAFFIC, DATA_ATTACK_INGESTIONS, DATA_ATTACK_TOTAL_RECORDS, DATA_ATTACK_INVALID_RECORDS, DATA_ATTACK_LAST_SUMMARY
     with _lock:
         TRAFFIC = 0
         REQUEST_LATENCIES.clear()
@@ -164,7 +192,13 @@ def reset() -> None:
         REQUEST_TOKENS_OUT.clear()
         ERRORS.clear()
         GUARDRAIL_BREACHES.clear()
+        DATA_ATTACK_BY_TYPE.clear()
+        DATA_ATTACK_BY_ERROR.clear()
         QUALITY_SCORES.clear()
+        DATA_ATTACK_INGESTIONS = 0
+        DATA_ATTACK_TOTAL_RECORDS = 0
+        DATA_ATTACK_INVALID_RECORDS = 0
+        DATA_ATTACK_LAST_SUMMARY = {}
         LATENCY_SERIES.clear()
         COST_SERIES.clear()
         TOKENS_SERIES.clear()

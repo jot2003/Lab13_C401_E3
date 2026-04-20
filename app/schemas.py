@@ -21,6 +21,7 @@ class ChatResponse(BaseModel):
     tokens_out: int
     cost_usd: float
     quality_score: float
+    guardrail_breaches: list[str] = []
 
 
 class LogRecord(BaseModel):

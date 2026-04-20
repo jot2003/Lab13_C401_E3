@@ -11,6 +11,7 @@ REQUEST_COSTS: list[float] = []
 REQUEST_TOKENS_IN: list[int] = []
 REQUEST_TOKENS_OUT: list[int] = []
 ERRORS: Counter[str] = Counter()
+GUARDRAIL_BREACHES: Counter[str] = Counter()
 TRAFFIC: int = 0
 QUALITY_SCORES: list[float] = []
 
@@ -23,6 +24,36 @@ QUALITY_SERIES: list[dict] = []   # {"ts": epoch, "value": float}
 TRAFFIC_SERIES: list[dict] = []   # {"ts": epoch, "count": 1}
 
 _lock = Lock()
+MAX_SERIES_POINTS = 2000
+MAX_SAMPLE_POINTS = 5000
+
+
+def _prune_samples() -> None:
+    if len(REQUEST_LATENCIES) > MAX_SAMPLE_POINTS:
+        del REQUEST_LATENCIES[:-MAX_SAMPLE_POINTS]
+    if len(REQUEST_COSTS) > MAX_SAMPLE_POINTS:
+        del REQUEST_COSTS[:-MAX_SAMPLE_POINTS]
+    if len(REQUEST_TOKENS_IN) > MAX_SAMPLE_POINTS:
+        del REQUEST_TOKENS_IN[:-MAX_SAMPLE_POINTS]
+    if len(REQUEST_TOKENS_OUT) > MAX_SAMPLE_POINTS:
+        del REQUEST_TOKENS_OUT[:-MAX_SAMPLE_POINTS]
+    if len(QUALITY_SCORES) > MAX_SAMPLE_POINTS:
+        del QUALITY_SCORES[:-MAX_SAMPLE_POINTS]
+
+
+def _prune_timeseries() -> None:
+    if len(LATENCY_SERIES) > MAX_SERIES_POINTS:
+        del LATENCY_SERIES[:-MAX_SERIES_POINTS]
+    if len(COST_SERIES) > MAX_SERIES_POINTS:
+        del COST_SERIES[:-MAX_SERIES_POINTS]
+    if len(TOKENS_SERIES) > MAX_SERIES_POINTS:
+        del TOKENS_SERIES[:-MAX_SERIES_POINTS]
+    if len(ERROR_SERIES) > MAX_SERIES_POINTS:
+        del ERROR_SERIES[:-MAX_SERIES_POINTS]
+    if len(QUALITY_SERIES) > MAX_SERIES_POINTS:
+        del QUALITY_SERIES[:-MAX_SERIES_POINTS]
+    if len(TRAFFIC_SERIES) > MAX_SERIES_POINTS:
+        del TRAFFIC_SERIES[:-MAX_SERIES_POINTS]
 
 
 def record_request(latency_ms: int, cost_usd: float, tokens_in: int, tokens_out: int, quality_score: float) -> None:
@@ -42,13 +73,25 @@ def record_request(latency_ms: int, cost_usd: float, tokens_in: int, tokens_out:
         TOKENS_SERIES.append({"ts": now, "tokens_in": tokens_in, "tokens_out": tokens_out})
         QUALITY_SERIES.append({"ts": now, "value": quality_score})
         TRAFFIC_SERIES.append({"ts": now, "count": 1})
+        _prune_samples()
+        _prune_timeseries()
 
 
 def record_error(error_type: str) -> None:
+    global TRAFFIC
     now = time.time()
     with _lock:
+        # Count failed requests in total traffic as well.
+        TRAFFIC += 1
         ERRORS[error_type] += 1
         ERROR_SERIES.append({"ts": now, "error_type": error_type})
+        TRAFFIC_SERIES.append({"ts": now, "count": 1})
+        _prune_timeseries()
+
+
+def record_guardrail_breach(kind: str) -> None:
+    with _lock:
+        GUARDRAIL_BREACHES[kind] += 1
 
 
 def percentile(values: list[int], p: int) -> float:
@@ -60,7 +103,7 @@ def percentile(values: list[int], p: int) -> float:
 
 
 def error_rate() -> float:
-    """Total errors / total traffic as a percentage."""
+    """Total errors / total requests as a percentage."""
     total_errors = sum(ERRORS.values())
     if TRAFFIC == 0:
         return 0.0
@@ -81,6 +124,7 @@ def snapshot() -> dict:
             # Panel 3: Error rate + breakdown
             "error_rate_pct": error_rate(),
             "error_breakdown": dict(ERRORS),
+            "guardrail_breaches": dict(GUARDRAIL_BREACHES),
             # Panel 4: Cost over time
             "avg_cost_usd": round(mean(REQUEST_COSTS), 4) if REQUEST_COSTS else 0.0,
             "total_cost_usd": round(sum(REQUEST_COSTS), 4),
@@ -119,6 +163,7 @@ def reset() -> None:
         REQUEST_TOKENS_IN.clear()
         REQUEST_TOKENS_OUT.clear()
         ERRORS.clear()
+        GUARDRAIL_BREACHES.clear()
         QUALITY_SCORES.clear()
         LATENCY_SERIES.clear()
         COST_SERIES.clear()

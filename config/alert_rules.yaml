@@ -1,3 +1,8 @@
+# Alert Rules - Day 13 Observability Lab
+# Owner: Nguyen Thanh Nam (D13-T04)
+# Moi alert phai co: severity, condition, type, owner, runbook link.
+# Threshold phai cao hon objective trong slo.yaml de tranh alert nhieu.
+
 alerts:
   - name: high_latency_p95
     severity: P2
@@ -5,15 +10,28 @@ alerts:
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#1-high-latency-p95
+    rationale: "SLO objective la 3000ms. Alert o 5000ms cho phep mot khoang burn-rate truoc khi leo thang."
+
   - name: high_error_rate
     severity: P1
     condition: error_rate_pct > 5 for 5m
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#2-high-error-rate
+    rationale: "SLO objective la 2%. Alert o 5% vi sai so lon trong thoi gian ngan la dau hieu su co nghiem trong."
+
   - name: cost_budget_spike
     severity: P2
     condition: hourly_cost_usd > 2x_baseline for 15m
     type: symptom-based
     owner: finops-owner
     runbook: docs/alerts.md#3-cost-budget-spike
+    rationale: "Vuot 2x baseline trong 15 phut cho thay co van de bat thuong (loop, spike traffic, prompt qua dai)."
+
+  - name: low_quality_score
+    severity: P2
+    condition: quality_score_avg < 0.5 for 10m
+    type: symptom-based
+    owner: team-oncall
+    runbook: docs/alerts.md#4-low-quality-score
+    rationale: "SLO objective la 0.75. Alert o 0.5 la nguong nguoi dung bat dau cam nhan chat luong kem ro ret."

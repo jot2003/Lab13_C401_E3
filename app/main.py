@@ -7,9 +7,10 @@ from fastapi.responses import JSONResponse
 from structlog.contextvars import bind_contextvars
 
 from .agent import LabAgent
+from .guardrails import evaluate_request_scope, evaluate_system_scope, load_limits
 from .incidents import disable, enable, status
 from .logging_config import configure_logging, get_logger
-from .metrics import record_error, snapshot, timeseries_snapshot
+from .metrics import record_error, record_guardrail_breach, snapshot, timeseries_snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
@@ -39,7 +40,10 @@ async def health() -> dict:
 
 @app.get("/metrics")
 async def metrics() -> dict:
-    return snapshot()
+    data = snapshot()
+    data["scope_limits"] = load_limits().__dict__
+    data["system_scope_breaches"] = evaluate_system_scope(data)
+    return data
 
 
 @app.get("/metrics/timeseries")
@@ -79,6 +83,24 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             cost_usd=result.cost_usd,
             payload={"answer_preview": summarize_text(result.answer)},
         )
+        guardrail_breaches = evaluate_request_scope(
+            tokens_in=result.tokens_in,
+            tokens_out=result.tokens_out,
+            cost_usd=result.cost_usd,
+        )
+        if guardrail_breaches:
+            for breach in guardrail_breaches:
+                record_guardrail_breach(breach)
+            log.warning(
+                "request_scope_breach",
+                service="api",
+                payload={
+                    "breaches": guardrail_breaches,
+                    "tokens_in": result.tokens_in,
+                    "tokens_out": result.tokens_out,
+                    "cost_usd": result.cost_usd,
+                },
+            )
         return ChatResponse(
             answer=result.answer,
             correlation_id=request.state.correlation_id,
@@ -87,6 +109,7 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             tokens_out=result.tokens_out,
             cost_usd=result.cost_usd,
             quality_score=result.quality_score,
+            guardrail_breaches=guardrail_breaches,
         )
     except Exception as exc:  # pragma: no cover
         error_type = type(exc).__name__

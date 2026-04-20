@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 
 from . import metrics
+from .incidents import status as incident_status
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
 from .pii import hash_user_id, summarize_text
-from .tracing import langfuse_context, observe
+from .tracing import (
+    build_trace_tags,
+    extract_active_incidents,
+    observe,
+    safe_update_current_observation,
+    safe_update_current_trace,
+)
 
 
 @dataclass
@@ -25,23 +33,49 @@ class LabAgent:
         self.model = model
         self.llm = FakeLLM(model=model)
 
-    @observe()
-    def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
+    @observe(name="agent.run")
+    def run(
+        self,
+        user_id: str,
+        feature: str,
+        session_id: str,
+        message: str,
+        correlation_id: str | None = None,
+    ) -> AgentResult:
         started = time.perf_counter()
-        docs = retrieve(message)
+        active_incidents = extract_active_incidents(incident_status())
+        docs = self._retrieve_docs(message)
         prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
-        response = self.llm.generate(prompt)
+        response = self._generate_response(prompt)
         quality_score = self._heuristic_quality(message, response.text, docs)
         latency_ms = int((time.perf_counter() - started) * 1000)
         cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
+        env = os.getenv("APP_ENV", "dev")
 
-        langfuse_context.update_current_trace(
+        safe_update_current_trace(
+            name=f"chat:{feature}",
             user_id=hash_user_id(user_id),
             session_id=session_id,
-            tags=["lab", feature, self.model],
+            tags=build_trace_tags(feature=feature, model=self.model, active_incidents=active_incidents, env=env),
+            metadata={
+                "correlation_id": correlation_id or "unknown",
+                "active_incidents": active_incidents,
+                "feature": feature,
+                "model": self.model,
+            },
         )
-        langfuse_context.update_current_observation(
-            metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
+        safe_update_current_observation(
+            model=self.model,
+            input={"message_preview": summarize_text(message)},
+            output={"answer_preview": summarize_text(response.text), "quality_score": quality_score},
+            metadata={
+                "doc_count": len(docs),
+                "query_preview": summarize_text(message),
+                "latency_ms": latency_ms,
+                "cost_usd": cost_usd,
+                "correlation_id": correlation_id or "unknown",
+                "active_incidents": active_incidents,
+            },
             usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
         )
 
@@ -61,6 +95,26 @@ class LabAgent:
             cost_usd=cost_usd,
             quality_score=quality_score,
         )
+
+    @observe(name="rag.retrieve")
+    def _retrieve_docs(self, message: str) -> list[str]:
+        docs = retrieve(message)
+        safe_update_current_observation(
+            input={"message_preview": summarize_text(message)},
+            output={"doc_count": len(docs)},
+            metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
+        )
+        return docs
+
+    @observe(name="llm.generate")
+    def _generate_response(self, prompt: str):
+        response = self.llm.generate(prompt)
+        safe_update_current_observation(
+            model=self.model,
+            metadata={"prompt_preview": summarize_text(prompt, max_len=120)},
+            usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+        )
+        return response
 
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
         input_cost = (tokens_in / 1_000_000) * 3

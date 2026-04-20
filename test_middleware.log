@@ -1,0 +1,36 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /Users/tuanhdangdinh/Lab13_C401_E3/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/tuanhdangdinh/Lab13_C401_E3
+plugins: asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 3 items
+
+tests/test_middleware.py::test_custom_id_in_log_and_response {"service": "day13-observability-lab", "env": "dev", "payload": {"tracing_enabled": false}, "event": "app_started", "level": "info", "ts": "2026-04-20T08:09:35.801701Z"}
+PASSED
+tests/test_middleware.py::test_generated_id_format_in_log_and_response {"service": "day13-observability-lab", "env": "dev", "payload": {"tracing_enabled": false}, "event": "app_started", "level": "info", "ts": "2026-04-20T08:09:35.804789Z"}
+PASSED
+tests/test_middleware.py::test_no_context_leak_between_requests {"service": "day13-observability-lab", "env": "dev", "payload": {"tracing_enabled": false}, "event": "app_started", "level": "info", "ts": "2026-04-20T08:09:35.807182Z"}
+PASSED
+
+=============================== warnings summary ===============================
+app/main.py:25
+  /Users/tuanhdangdinh/Lab13_C401_E3/app/main.py:25: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv/lib/python3.14/site-packages/fastapi/applications.py:4598
+  /Users/tuanhdangdinh/Lab13_C401_E3/.venv/lib/python3.14/site-packages/fastapi/applications.py:4598: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 3 passed, 2 warnings in 0.24s =========================

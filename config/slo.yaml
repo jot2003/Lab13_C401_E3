@@ -1,38 +1,67 @@
-service: day13-observability-lab
+service: day13-admissions-advisor
+domain: university-admissions-consulting
 window: 28d
 
-# SLO definitions for Day 13 Observability Lab
+# SLO Definitions - Domain: Tu van tuyen sinh Dai hoc
 # Owner: Nguyen Thanh Nam (D13-T04)
-# Each SLI has an objective (threshold for violation) and alert_threshold (when alert fires).
-# alert_threshold is intentionally set higher than objective to give a burn-rate buffer.
+# metric_key phai khop voi ket qua tra ve tu app/metrics.py -> snapshot()
+#
+# Cac metric_key hop le:
+#   latency_p95, latency_p50, latency_p99
+#   error_rate_pct
+#   avg_cost_usd, total_cost_usd
+#   quality_avg, quality_min, quality_max
+#   traffic, qps
 
 slis:
   latency_p95_ms:
-    description: "P95 latency phai duoi 3000ms de dam bao trai nghiem nguoi dung"
+    description: >
+      Thi sinh hoi thong tin xet tuyen (dieu kien, diem chuan, han nop ho so)
+      phai nhan duoc phan hoi trong 3000ms. Vuot nguong nay gay mat tin tuong.
+    metric_key: latency_p95
+    unit: ms
     objective: 3000
     target: 99.5
     alert_threshold: 5000
-    note: "Alert ban khi > 5000ms trong 30 phut (~2x SLO budget). Xem runbook: docs/alerts.md#1-high-latency-p95"
+    domain_context: >
+      Mua tuyen sinh (thang 7-8) co the co traffic dot bien khi thi sinh
+      check ket qua THPTQG. SLO nay dam bao he thong chiu tai tot.
 
   error_rate_pct:
-    description: "Ti le request loi phai duoi 2% theo cua so 28 ngay"
+    description: >
+      Ti le request loi khi tu van tuyen sinh phai duoi 2%.
+      Loi cao = thi sinh nhan thong tin sai hoac khong nhan duoc tu van.
+    metric_key: error_rate_pct
+    unit: percent
     objective: 2
     target: 99.0
     alert_threshold: 5
-    note: "Alert ban khi > 5% trong 5 phut. Xem runbook: docs/alerts.md#2-high-error-rate"
+    domain_context: >
+      Sai thong tin xet tuyen (sai ma nganh, sai han nop) co the khien
+      thi sinh mat co hoi. Alert o 5% vi day la nguong bat dau co rui ro ro rang.
 
-  daily_cost_usd:
-    description: "Chi phi trung binh moi request khong vuot $2.50 USD"
-    objective: 2.5
+  avg_cost_usd:
+    description: >
+      Chi phi trung binh moi luot tu van khong vuot $2.50 USD.
+      Cau hoi tuyen sinh thuong dai (nhieu nganh, nhieu truong) nen token cao.
+    metric_key: avg_cost_usd
+    unit: usd
+    objective: 2.50
     target: 100.0
     alert_threshold: "2x_baseline"
-    metric_key: avg_cost_usd
-    note: "Alert ban khi avg_cost_usd vuot 2x baseline trong 15 phut. Xem runbook: docs/alerts.md#3-cost-budget-spike"
+    domain_context: >
+      Cost spike thuong xay ra khi thi sinh hoi toan bo chi tieu tat ca nganh
+      cua nhieu truong (prompt lon). Can giam prompt hoac cache ket qua.
 
-  quality_score_avg:
-    description: "Diem chat luong response trung binh phai >= 0.75 (thang 0.0-1.0)"
+  quality_avg:
+    description: >
+      Diem chat luong trung binh cau tra loi tu van phai >= 0.75.
+      Chat luong thap = tra loi sai nganh, sai to hop, sai han nop.
+    metric_key: quality_avg
+    unit: score_0_to_1
     objective: 0.75
     target: 95.0
-    alert_threshold: 0.5
-    metric_key: quality_avg
-    note: "Alert ban khi quality_avg < 0.5 trong 10 phut. Xem runbook: docs/alerts.md#4-low-quality-score"
+    alert_threshold: 0.50
+    domain_context: >
+      Tu van sai co the gay hau qua nghiem trong (thi sinh nop sai truong,
+      sai nganh). Alert o 0.50 - nguong nguoi dung bat dau cam nhan chat luong kem.

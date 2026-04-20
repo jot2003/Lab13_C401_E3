@@ -1,16 +1,67 @@
-service: day13-observability-lab
+service: day13-admissions-advisor
+domain: university-admissions-consulting
 window: 28d
+
+# SLO Definitions - Domain: Tu van tuyen sinh Dai hoc
+# Owner: Nguyen Thanh Nam (D13-T04)
+# metric_key phai khop voi ket qua tra ve tu app/metrics.py -> snapshot()
+#
+# Cac metric_key hop le:
+#   latency_p95, latency_p50, latency_p99
+#   error_rate_pct
+#   avg_cost_usd, total_cost_usd
+#   quality_avg, quality_min, quality_max
+#   traffic, qps
+
 slis:
   latency_p95_ms:
+    description: >
+      Thi sinh hoi thong tin xet tuyen (dieu kien, diem chuan, han nop ho so)
+      phai nhan duoc phan hoi trong 3000ms. Vuot nguong nay gay mat tin tuong.
+    metric_key: latency_p95
+    unit: ms
     objective: 3000
     target: 99.5
-    note: Replace with your group's target
+    alert_threshold: 5000
+    domain_context: >
+      Mua tuyen sinh (thang 7-8) co the co traffic dot bien khi thi sinh
+      check ket qua THPTQG. SLO nay dam bao he thong chiu tai tot.
+
   error_rate_pct:
+    description: >
+      Ti le request loi khi tu van tuyen sinh phai duoi 2%.
+      Loi cao = thi sinh nhan thong tin sai hoac khong nhan duoc tu van.
+    metric_key: error_rate_pct
+    unit: percent
     objective: 2
     target: 99.0
-  daily_cost_usd:
-    objective: 2.5
+    alert_threshold: 5
+    domain_context: >
+      Sai thong tin xet tuyen (sai ma nganh, sai han nop) co the khien
+      thi sinh mat co hoi. Alert o 5% vi day la nguong bat dau co rui ro ro rang.
+
+  avg_cost_usd:
+    description: >
+      Chi phi trung binh moi luot tu van khong vuot $2.50 USD.
+      Cau hoi tuyen sinh thuong dai (nhieu nganh, nhieu truong) nen token cao.
+    metric_key: avg_cost_usd
+    unit: usd
+    objective: 2.50
     target: 100.0
-  quality_score_avg:
+    alert_threshold: "2x_baseline"
+    domain_context: >
+      Cost spike thuong xay ra khi thi sinh hoi toan bo chi tieu tat ca nganh
+      cua nhieu truong (prompt lon). Can giam prompt hoac cache ket qua.
+
+  quality_avg:
+    description: >
+      Diem chat luong trung binh cau tra loi tu van phai >= 0.75.
+      Chat luong thap = tra loi sai nganh, sai to hop, sai han nop.
+    metric_key: quality_avg
+    unit: score_0_to_1
     objective: 0.75
     target: 95.0
+    alert_threshold: 0.50
+    domain_context: >
+      Tu van sai co the gay hau qua nghiem trong (thi sinh nop sai truong,
+      sai nganh). Alert o 0.50 - nguong nguoi dung bat dau cam nhan chat luong kem.

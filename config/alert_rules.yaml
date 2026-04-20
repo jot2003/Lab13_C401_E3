@@ -1,19 +1,80 @@
+# Alert Rules - Day 13 Observability Lab
+# Domain: Tu van tuyen sinh Dai hoc
+# Owner: Nguyen Thanh Nam (D13-T04)
+#
+# Quy tac chung:
+#   - condition dung metric_key chinh xac tu app/metrics.py snapshot()
+#   - alert_threshold > SLO objective de tranh false positive
+#   - moi alert co runbook link tro den section cu the trong docs/alerts.md
+
 alerts:
+
+  # ---------------------------------------------------------------
+  # ALERT 1: HIGH LATENCY P95
+  # Trigger: rag_slow incident hoac he thong qua tai mua tuyen sinh
+  # ---------------------------------------------------------------
   - name: high_latency_p95
     severity: P2
-    condition: latency_p95_ms > 5000 for 30m
+    condition: latency_p95 > 5000 for 30m
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#1-high-latency-p95
+    rationale: >
+      SLO objective 3000ms. Alert o 5000ms (gap 2x) de tranh false positive
+      trong mua cao diem tuyen sinh. 30 phut lien tuc moi leo thang tranh nhieu.
+    domain_impact: >
+      Thi sinh hoi thong tin xet tuyen phai cho qua lau, co the bo qua tu van
+      va nop ho so sai.
+
+  # ---------------------------------------------------------------
+  # ALERT 2: HIGH ERROR RATE
+  # Trigger: tool_fail incident hoac loi he thong
+  # ---------------------------------------------------------------
   - name: high_error_rate
     severity: P1
     condition: error_rate_pct > 5 for 5m
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#2-high-error-rate
+    rationale: >
+      SLO objective 2%. Alert o 5% vi khi loi cao -> thi sinh nhan thong tin
+      sai ve nganh, to hop, diem chuan. P1 vi rui ro sai thong tin nghiem trong.
+      5 phut kich hoat nhanh de giam thiet hai.
+    domain_impact: >
+      Thi sinh co the nop ho so sai truong, sai nganh do nhan thong tin loi.
+      Day la rui ro cao nhat trong domain tuyen sinh.
+
+  # ---------------------------------------------------------------
+  # ALERT 3: COST BUDGET SPIKE
+  # Trigger: cost_spike incident hoac query prompt qua lon
+  # ---------------------------------------------------------------
   - name: cost_budget_spike
     severity: P2
-    condition: hourly_cost_usd > 2x_baseline for 15m
+    condition: avg_cost_usd > 2x_baseline for 15m
     type: symptom-based
     owner: finops-owner
     runbook: docs/alerts.md#3-cost-budget-spike
+    rationale: >
+      Cau hoi tuyen sinh thuong lon (nhieu truong, nhieu nganh cung luc).
+      2x baseline trong 15 phut cho thay co bat thuong: loop, spike traffic,
+      hoac thi sinh gui prompt rat dai. Alert som de giam chi phi.
+    domain_impact: >
+      Vuot ngan sach anh huong kha nang duy tri dich vu trong ca mua tuyen sinh
+      (thang 7-8 co luong truy cap cao).
+
+  # ---------------------------------------------------------------
+  # ALERT 4: LOW QUALITY SCORE
+  # Trigger: rag_slow lam giam chat luong retrieval, hoac rag data bi hong
+  # ---------------------------------------------------------------
+  - name: low_quality_score
+    severity: P2
+    condition: quality_avg < 0.5 for 10m
+    type: symptom-based
+    owner: team-oncall
+    runbook: docs/alerts.md#4-low-quality-score
+    rationale: >
+      SLO objective 0.75. Alert o 0.5 la nguong nguoi dung bat dau cam nhan
+      ro su xuong cap chat luong. 10 phut lien tuc tranh alert nhieu do dao dong.
+    domain_impact: >
+      Tu van sai co the khien thi sinh nop sai truong, sai to hop, sai nganh.
+      Day la loi nghiem trong nhat trong domain tuyen sinh dai hoc.
